@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { Toilet, ShowerHead } from 'lucide-react-native';
+import { Clock, Toilet, ShowerHead } from 'lucide-react-native';
 import Colors from '@/constants/colors';
 import StatusIndicator from './StatusIndicator';
 
@@ -36,7 +36,7 @@ export const FacilityItem: React.FC<FacilityItemProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text>{number}</Text>
+        <Text style={styles.title}>{number}</Text>
         <Text style={styles.title}>
           {type === 'toilet' ? <Toilet size={20} color={Colors.primary} /> : <ShowerHead size={20} color={Colors.primary} />}
         </Text>

@@ -10,19 +10,24 @@ import OccupancySummary from '@/components/OccupancySummary';
 import RefreshTimer from '@/components/RefreshTimer';
 
 export default function HomeScreen() {
-  const { blocks, lastUpdated, isLoading, fetchStatus, refreshData, simulateOccupancyChange } = useWashroomStore();
+  const { blocks, lastUpdated, isLoading, fetchStatus, refreshData, startRealtimeUpdates, stopRealtimeUpdates } = useWashroomStore();
+
+  // Initial data fetch and setup realtime updates
+  useEffect(() => {
+    fetchStatus();
+    startRealtimeUpdates();
+    
+    // Cleanup when component unmounts
+    return () => {
+      stopRealtimeUpdates();
+    };
+  }, []);
 
   // Fetch data when the screen is focused
   useFocusEffect(
     useCallback(() => {
       fetchStatus();
-      
-      // Simulate real-time updates
-      const intervalId = setInterval(() => {
-        simulateOccupancyChange();
-      }, 15000); // Every 15 seconds
-      
-      return () => clearInterval(intervalId);
+      return () => {};
     }, [])
   );
 

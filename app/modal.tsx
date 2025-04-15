@@ -16,16 +16,16 @@ export default function ModalScreen() {
             <Clock size={48} color={Colors.primary} />
           </View>
           <Text style={styles.logoText}>GoTime</Text>
-          <Text style={styles.tagline}>Washroom Occupancy System</Text>
+          <Text style={styles.tagline}>Smart Washroom Occupancy System</Text>
         </View>
         
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>About the App</Text>
           <Text style={styles.paragraph}>
-            GoTime is a real-time washroom occupancy monitoring system designed to help users find available toilets and bathing facilities across multiple blocks of the hostels.
+            GoTime is a real-time washroom occupancy monitoring system designed to help users find available toilets and bathing facilities across multiple blocks.
           </Text>
           <Text style={styles.paragraph}>
-            The app displays live occupancy data, and usage analytics to improve your washroom experience.
+            The app displays live occupancy data, estimated wait times, and usage analytics to improve your washroom experience.
           </Text>
         </View>
         
@@ -39,7 +39,7 @@ export default function ModalScreen() {
             <View style={styles.featureContent}>
               <Text style={styles.featureTitle}>Smart Sensors</Text>
               <Text style={styles.featureDescription}>
-                Door-mounted sensors detect when facilities are locked or unlocked, providing real-time occupancy data.
+                Door-mounted ESP32 sensors detect when facilities are locked or unlocked, providing real-time occupancy data.
               </Text>
             </View>
           </View>
@@ -92,7 +92,7 @@ export default function ModalScreen() {
             GoTime v1.0.0
           </Text>
           <Text style={styles.copyright}>
-            © 2025 GoTime
+            © 2023 GoTime Technologies
           </Text>
         </View>
       </ScrollView>

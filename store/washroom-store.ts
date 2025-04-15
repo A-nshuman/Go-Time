@@ -1,21 +1,23 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { database } from '@/firebase/config';
+import { ref, onValue, get, off } from 'firebase/database';
 import { WashroomState, BlockStatus, FloorStatus } from '@/types/washroom';
-import { initialMockData, generateMockData } from '@/mocks/washroom-data';
 
 interface WashroomStore extends WashroomState {
   fetchStatus: () => Promise<void>;
   refreshData: () => Promise<void>;
+  startRealtimeUpdates: () => void;
+  stopRealtimeUpdates: () => void;
   updateBlockStatus: (blockId: string, updatedBlock: Partial<BlockStatus>) => void;
   updateFloorStatus: (blockId: string, floorId: string, updatedFloor: Partial<FloorStatus>) => void;
-  simulateOccupancyChange: () => void;
 }
 
 export const useWashroomStore = create<WashroomStore>()(
   persist(
     (set, get) => ({
-      blocks: initialMockData,
+      blocks: [],
       lastUpdated: Date.now(),
       isLoading: false,
       error: null,
@@ -23,18 +25,25 @@ export const useWashroomStore = create<WashroomStore>()(
       fetchStatus: async () => {
         set({ isLoading: true });
         try {
-          // In a real app, this would be an API call to fetch real data
-          // For now, we'll use a timeout to simulate network request
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          const washroomsRef = ref(database, 'washrooms');
+          const snapshot = await get(washroomsRef);
           
-          // Simulate fetching new data
-          const newData = generateMockData();
-          set({ 
-            blocks: newData, 
-            lastUpdated: Date.now(),
-            isLoading: false,
-            error: null
-          });
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const blocks = processFirebaseData(data);
+            
+            set({ 
+              blocks, 
+              lastUpdated: Date.now(),
+              isLoading: false,
+              error: null
+            });
+          } else {
+            set({ 
+              isLoading: false, 
+              error: "No data available"
+            });
+          }
         } catch (error) {
           set({ 
             isLoading: false, 
@@ -44,22 +53,33 @@ export const useWashroomStore = create<WashroomStore>()(
       },
       
       refreshData: async () => {
-        set({ isLoading: true });
-        try {
-          await new Promise(resolve => setTimeout(resolve, 800));
-          const newData = generateMockData();
+        await get().fetchStatus();
+      },
+      
+      startRealtimeUpdates: () => {
+        const washroomsRef = ref(database, 'washrooms');
+        
+        onValue(washroomsRef, (snapshot) => {
+          if (snapshot.exists()) {
+            const data = snapshot.val();
+            const blocks = processFirebaseData(data);
+            
+            set({ 
+              blocks, 
+              lastUpdated: Date.now(),
+              error: null
+            });
+          }
+        }, (error) => {
           set({ 
-            blocks: newData, 
-            lastUpdated: Date.now(),
-            isLoading: false,
-            error: null
+            error: error.message 
           });
-        } catch (error) {
-          set({ 
-            isLoading: false, 
-            error: error instanceof Error ? error.message : "Failed to refresh data" 
-          });
-        }
+        });
+      },
+      
+      stopRealtimeUpdates: () => {
+        const washroomsRef = ref(database, 'washrooms');
+        off(washroomsRef);
       },
       
       updateBlockStatus: (blockId, updatedBlock) => {
@@ -75,7 +95,7 @@ export const useWashroomStore = create<WashroomStore>()(
         set(state => ({
           blocks: state.blocks.map(block => {
             if (block.id === blockId) {
-              const updatedFloors = (block as BlockStatus & { floors: FloorStatus[] }).floors.map(floor =>
+              const updatedFloors = block.floors.map(floor => 
                 floor.id === floorId ? { ...floor, ...updatedFloor } : floor
               );
               
@@ -95,69 +115,73 @@ export const useWashroomStore = create<WashroomStore>()(
           lastUpdated: Date.now()
         }));
       },
-      
-      simulateOccupancyChange: () => {
-        const { blocks } = get();
-        const updatedBlocks = [...blocks];
-        
-        // Randomly select a block to update
-        const blockIndex = Math.floor(Math.random() * updatedBlocks.length);
-        const block = { ...updatedBlocks[blockIndex] };
-        
-        // Randomly select a floor to update
-        const floorIndex = Math.floor(Math.random() * (block as BlockStatus & { floors: FloorStatus[] }).floors.length);
-        const floor = { ...(block as BlockStatus & { floors: FloorStatus[] }).floors[floorIndex] };
-        
-        // Randomly decide whether to update a toilet or bathing area
-        const updateToilet = Math.random() > 0.5;
-        
-        if (updateToilet) {
-          const toiletIndex = Math.floor(Math.random() * floor.toilets.length);
-          const toilets = [...floor.toilets];
-          toilets[toiletIndex] = {
-            ...toilets[toiletIndex],
-            isOccupied: !toilets[toiletIndex].isOccupied,
-            occupiedSince: !toilets[toiletIndex].isOccupied ? Date.now() : undefined,
-            estimatedWaitTime: !toilets[toiletIndex].isOccupied ? Math.floor(Math.random() * 10) + 1 : undefined,
-          };
-          
-          floor.toilets = toilets;
-          floor.occupiedToilets = toilets.filter(t => t.isOccupied).length;
-        } else {
-          const bathingAreaIndex = Math.floor(Math.random() * floor.bathingAreas.length);
-          const bathingAreas = [...floor.bathingAreas];
-          bathingAreas[bathingAreaIndex] = {
-            ...bathingAreas[bathingAreaIndex],
-            isOccupied: !bathingAreas[bathingAreaIndex].isOccupied,
-            occupiedSince: !bathingAreas[bathingAreaIndex].isOccupied ? Date.now() : undefined,
-            estimatedWaitTime: !bathingAreas[bathingAreaIndex].isOccupied ? Math.floor(Math.random() * 15) + 5 : undefined,
-          };
-          
-          floor.bathingAreas = bathingAreas;
-          floor.occupiedBathingAreas = bathingAreas.filter(b => b.isOccupied).length;
-        }
-        
-        (block as BlockStatus & { floors: FloorStatus[] }).floors[floorIndex] = floor;
-        
-        // Recalculate block totals
-        block.occupiedToilets = (block as BlockStatus & { floors: FloorStatus[] }).floors.reduce((sum, f) => sum + f.occupiedToilets, 0);
-        block.occupiedBathingAreas = (block as BlockStatus & { floors: FloorStatus[] }).floors.reduce((sum, f) => sum + f.occupiedBathingAreas, 0);
-        
-        updatedBlocks[blockIndex] = block;
-        
-        set({ 
-          blocks: updatedBlocks,
-          lastUpdated: Date.now()
-        });
-      }
     }),
     {
       name: 'washroom-storage',
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
-        blocks: state.blocks,
         lastUpdated: state.lastUpdated
       }),
     }
   )
 );
+
+// Helper function to process Firebase data into our app's data structure
+function processFirebaseData(data: any): BlockStatus[] {
+  const blocks: BlockStatus[] = [];
+  
+  Object.keys(data).forEach(blockId => {
+    const blockData = data[blockId];
+    const floors: FloorStatus[] = [];
+    
+    Object.keys(blockData.floors).forEach(floorId => {
+      const floorData = blockData.floors[floorId];
+      
+      // Calculate occupancy for this floor
+      const occupiedToilets = floorData.toilets.filter((t: any) => t.isOccupied).length;
+      const occupiedBathingAreas = floorData.bathingAreas.filter((b: any) => b.isOccupied).length;
+      
+      // Add estimated wait times based on occupancy
+      const toilets = floorData.toilets.map((toilet: any) => ({
+        ...toilet,
+        occupiedSince: toilet.isOccupied ? Date.now() - Math.floor(Math.random() * 600000) : undefined,
+        estimatedWaitTime: toilet.isOccupied ? Math.floor(Math.random() * 10) + 1 : undefined,
+      }));
+      
+      const bathingAreas = floorData.bathingAreas.map((bathingArea: any) => ({
+        ...bathingArea,
+        occupiedSince: bathingArea.isOccupied ? Date.now() - Math.floor(Math.random() * 1200000) : undefined,
+        estimatedWaitTime: bathingArea.isOccupied ? Math.floor(Math.random() * 15) + 5 : undefined,
+      }));
+      
+      floors.push({
+        id: floorId,
+        name: floorData.name,
+        toilets,
+        bathingAreas,
+        totalToilets: floorData.toilets.length,
+        totalBathingAreas: floorData.bathingAreas.length,
+        occupiedToilets,
+        occupiedBathingAreas,
+      });
+    });
+    
+    // Calculate total occupancy for the block
+    const totalToilets = floors.reduce((sum, floor) => sum + floor.totalToilets, 0);
+    const occupiedToilets = floors.reduce((sum, floor) => sum + floor.occupiedToilets, 0);
+    const totalBathingAreas = floors.reduce((sum, floor) => sum + floor.totalBathingAreas, 0);
+    const occupiedBathingAreas = floors.reduce((sum, floor) => sum + floor.occupiedBathingAreas, 0);
+    
+    blocks.push({
+      id: blockId,
+      name: blockData.name,
+      floors,
+      totalToilets,
+      totalBathingAreas,
+      occupiedToilets,
+      occupiedBathingAreas,
+    });
+  });
+  
+  return blocks;
+}

@@ -51,7 +51,7 @@ export const FloorCard: React.FC<FloorCardProps> = ({ floor, blockId }) => {
       <View style={styles.facilitiesContainer}>
         <View style={styles.facilityItem}>
           <View style={styles.iconContainer}>
-            <Toilet size={18} color={Colors.primary} />
+          <Toilet size={18} color={Colors.primary} />
           </View>
           <View style={styles.facilityDetails}>
             <Text style={styles.facilityTitle}>Toilets</Text>
